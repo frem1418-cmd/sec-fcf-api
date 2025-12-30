@@ -4,15 +4,15 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Headers obligatoires pour la SEC
+// Headers SEC obligatoires
 const SEC_HEADERS = {
-  "User-Agent": "FCF-Screener (contact: frem1418@gmail.com",
+  "User-Agent": "FCF-Screener/1.0 (contact: frem1418@gmail.com)",
   "Accept": "application/json",
   "Accept-Encoding": "gzip, deflate, br",
   "Connection": "keep-alive"
 };
 
-// Fonction utilitaire pour fetch SEC avec retry
+// Fonction fetch avec retry
 async function fetchSEC(url) {
   for (let i = 0; i < 3; i++) {
     const res = await fetch(url, { headers: SEC_HEADERS });
@@ -22,16 +22,13 @@ async function fetchSEC(url) {
   throw new Error("SEC blocked request: " + url);
 }
 
-// Route principale : /?ticker=AAPL
 app.get("/", async (req, res) => {
   try {
     const ticker = (req.query.ticker || "AAPL").toUpperCase();
 
-    // 1. Télécharger la liste des tickers SEC
-    const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
-    const tickers = await fetchSEC(tickersUrl);
+    // 1. Télécharger la liste des tickers
+    const tickers = await fetchSEC("https://www.sec.gov/files/company_tickers.json");
 
-    // Trouver le CIK
     let cik = null;
     for (const key in tickers) {
       if (tickers[key].ticker === ticker) {
@@ -40,35 +37,36 @@ app.get("/", async (req, res) => {
       }
     }
 
-    if (!cik) {
-      return res.json({ error: "CIK introuvable pour " + ticker });
+    if (!cik) return res.json({ error: "CIK introuvable" });
+
+    // 2. Télécharger les company facts
+    const facts = await fetchSEC(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`);
+
+    function extract(path) {
+      try {
+        return facts.facts["us-gaap"][path].units.USD.at(-1).val;
+      } catch {
+        return null;
+      }
     }
 
-    // 2. Télécharger les company facts (XBRL)
-    const factsUrl = `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`;
-    const facts = await fetchSEC(factsUrl);
-
-    // 3. Extraire OCF et CAPEX
-    const ocf =
-      facts.facts?.["us-gaap"]?.["NetCashProvidedByUsedInOperatingActivities"]?.units?.USD?.at(-1)?.val;
-
-    const capex =
-      facts.facts?.["us-gaap"]?.["PaymentsToAcquirePropertyPlantAndEquipment"]?.units?.USD?.at(-1)?.val;
-
-    if (ocf == null || capex == null) {
-      return res.json({
-        error: "Impossible d'extraire OCF ou CAPEX",
-        ocf,
-        capex
-      });
-    }
-
-    const fcf = ocf - Math.abs(capex);
+    // 3. Extraire les métriques
+    const revenue = extract("Revenues");
+    const netIncome = extract("NetIncomeLoss");
+    const ebit = extract("OperatingIncomeLoss");
+    const ebitda = extract("OperatingIncomeLoss") + extract("DepreciationDepletionAndAmortization");
+    const ocf = extract("NetCashProvidedByUsedInOperatingActivities");
+    const capex = extract("PaymentsToAcquirePropertyPlantAndEquipment");
+    const fcf = ocf != null && capex != null ? ocf - Math.abs(capex) : null;
 
     // 4. Réponse JSON propre
     res.json({
       ticker,
       cik,
+      revenue,
+      netIncome,
+      ebit,
+      ebitda,
       ocf,
       capex,
       fcf
@@ -79,7 +77,6 @@ app.get("/", async (req, res) => {
   }
 });
 
-// Lancer le serveur
 app.listen(PORT, () =>
-  console.log("SEC FCF API running on port " + PORT)
+  console.log("SEC API running on port " + PORT)
 );
