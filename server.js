@@ -4,86 +4,71 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Headers obligatoires pour la SEC
+const SEC_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+  "Accept": "application/json",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Connection": "keep-alive"
+};
 
-app.get("/test-submissions", async (req, res) => {
+// Fonction utilitaire pour fetch SEC avec retry
+async function fetchSEC(url) {
+  for (let i = 0; i < 3; i++) {
+    const res = await fetch(url, { headers: SEC_HEADERS });
+    if (res.ok) return res.json();
+    await new Promise(r => setTimeout(r, 500));
+  }
+  throw new Error("SEC blocked request: " + url);
+}
+
+// Route principale : /?ticker=AAPL
+app.get("/", async (req, res) => {
   try {
-    const cik = "0000320193"; // CIK de Apple
+    const ticker = (req.query.ticker || "AAPL").toUpperCase();
 
-    const url = `https://data.sec.gov/submissions/CIK${cik}.json`;
+    // 1. Télécharger la liste des tickers SEC
+    const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
+    const tickers = await fetchSEC(tickersUrl);
 
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept": "application/json",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-        "Host": "data.sec.gov"
-      }
-    });
-
-    const text = await response.text();
-    res.send(text);
-  } catch (e) {
-    res.send("Erreur: " + e.toString());
-  }
-});
-
-
-
-    
-    if (!cik) return res.json({ error: "CIK introuvable" });
-
-    // 2. Récupérer les filings
-    const submissionsUrl = `https://data.sec.gov/submissions/CIK${cik}.json`;
-    const filings = await fetch(submissionsUrl, {
-       headers: {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    "Accept": "application/json",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Host": "data.sec.gov"
-  }
-
-    }).then(r => r.json());
-
-    // 3. Trouver le dernier 10-K
-    let accession = null;
-    for (let i = 0; i < filings.filings.recent.form.length; i++) {
-      if (filings.filings.recent.form[i] === "10-K") {
-        accession = filings.filings.recent.accessionNumber[i].replace(/-/g, "");
+    // Trouver le CIK
+    let cik = null;
+    for (const key in tickers) {
+      if (tickers[key].ticker === ticker) {
+        cik = tickers[key].cik_str.toString().padStart(10, "0");
         break;
       }
     }
 
-    if (!accession) return res.json({ error: "10-K introuvable" });
+    if (!cik) {
+      return res.json({ error: "CIK introuvable pour " + ticker });
+    }
 
-    // 4. Télécharger les faits XBRL (companyfacts)
-    const xbrlUrl = `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`;
-    const facts = await fetch(xbrlUrl, {
-      headers: {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    "Accept": "application/json",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Host": "data.sec.gov"
-  }
+    // 2. Télécharger les company facts (XBRL)
+    const factsUrl = `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`;
+    const facts = await fetchSEC(factsUrl);
 
-    }).then(r => r.json());
-
-    // 5. Extraire OCF et CAPEX
+    // 3. Extraire OCF et CAPEX
     const ocf =
       facts.facts?.["us-gaap"]?.["NetCashProvidedByUsedInOperatingActivities"]?.units?.USD?.at(-1)?.val;
+
     const capex =
       facts.facts?.["us-gaap"]?.["PaymentsToAcquirePropertyPlantAndEquipment"]?.units?.USD?.at(-1)?.val;
 
     if (ocf == null || capex == null) {
-      return res.json({ error: "Données introuvables", ocf, capex });
+      return res.json({
+        error: "Impossible d'extraire OCF ou CAPEX",
+        ocf,
+        capex
+      });
     }
 
     const fcf = ocf - Math.abs(capex);
 
+    // 4. Réponse JSON propre
     res.json({
       ticker,
+      cik,
       ocf,
       capex,
       fcf
@@ -94,4 +79,7 @@ app.get("/test-submissions", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log("SEC FCF API running on port " + PORT));
+// Lancer le serveur
+app.listen(PORT, () =>
+  console.log("SEC FCF API running on port " + PORT)
+);
