@@ -36,6 +36,7 @@ function extractLastSeven(facts, key) {
       n5: arr.at(-6)?.val ?? null,
       n6: arr.at(-7)?.val ?? null
     };
+
   } catch {
     return {
       n: null, n1: null, n2: null, n3: null,
@@ -43,6 +44,7 @@ function extractLastSeven(facts, key) {
     };
   }
 }
+
 
 // Calcule FCF = OCF - |CAPEX| sur 7 années
 function computeFCF(ocf, capex) {
