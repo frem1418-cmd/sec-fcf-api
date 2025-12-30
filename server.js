@@ -6,7 +6,7 @@ const PORT = process.env.PORT || 3000;
 
 // Headers obligatoires pour la SEC
 const SEC_HEADERS = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+  "User-Agent": "FCF-Screener (contact: frem1418@gmail.com",
   "Accept": "application/json",
   "Accept-Encoding": "gzip, deflate, br",
   "Connection": "keep-alive"
