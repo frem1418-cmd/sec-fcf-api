@@ -25,7 +25,14 @@ app.get("/", async (req, res) => {
     // 2. Récupérer les filings
     const submissionsUrl = `https://data.sec.gov/submissions/CIK${cik}.json`;
     const filings = await fetch(submissionsUrl, {
-      headers: { "User-Agent": "Mozilla/5.0" }
+       headers: {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Accept": "application/json",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Host": "data.sec.gov"
+  }
+
     }).then(r => r.json());
 
     // 3. Trouver le dernier 10-K
@@ -42,7 +49,14 @@ app.get("/", async (req, res) => {
     // 4. Télécharger les faits XBRL (companyfacts)
     const xbrlUrl = `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`;
     const facts = await fetch(xbrlUrl, {
-      headers: { "User-Agent": "Mozilla/5.0" }
+      headers: {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Accept": "application/json",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Host": "data.sec.gov"
+  }
+
     }).then(r => r.json());
 
     // 5. Extraire OCF et CAPEX
