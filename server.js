@@ -20,6 +20,32 @@ app.get("/", async (req, res) => {
       }
     }
 
+app.get("/test-submissions", async (req, res) => {
+  try {
+    const cik = "0000320193"; // CIK de Apple
+
+    const url = `https://data.sec.gov/submissions/CIK${cik}.json`;
+
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Accept": "application/json",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Host": "data.sec.gov"
+      }
+    });
+
+    const text = await response.text();
+    res.send(text);
+  } catch (e) {
+    res.send("Erreur: " + e.toString());
+  }
+});
+
+
+
+    
     if (!cik) return res.json({ error: "CIK introuvable" });
 
     // 2. Récupérer les filings
