@@ -4,21 +4,6 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get("/", async (req, res) => {
-  try {
-    const ticker = (req.query.ticker || "AAPL").toUpperCase();
-
-    // 1. Télécharger la liste des tickers SEC
-    const tickersUrl = "https://www.sec.gov/files/company_tickers.json";
-    const tickers = await fetch(tickersUrl).then(r => r.json());
-
-    let cik = null;
-    for (const key in tickers) {
-      if (tickers[key].ticker === ticker) {
-        cik = tickers[key].cik_str.toString().padStart(10, "0");
-        break;
-      }
-    }
 
 app.get("/test-submissions", async (req, res) => {
   try {
